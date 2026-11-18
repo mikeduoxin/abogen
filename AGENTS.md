@@ -10,9 +10,8 @@ table.**
 ## Voice processing — split pattern passed to the TTS engine
 
 `get_split_pattern(language, mode)` in `abogen/domain/split_pattern.py` is the
-default; the spaCy pre-TTS path overrides it. Both UIs must stay in sync:
-`spacy_pre_tts_segmentation` (`abogen/domain/conversion_pipeline.py`, WebUI)
-and the inline branch in `abogen/pyqt/conversion.py` (~line 860, PyQt).
+default; `spacy_pre_tts_segmentation` in `abogen/domain/conversion_pipeline.py`
+overrides it. WebUI and PyQt both call that function.
 
 | Subtitle mode | English (en-US/en-GB) | Non-English, spaCy ON | Non-English, spaCy OFF | CJK (ja/zh) |
 |---|---|---|---|---|

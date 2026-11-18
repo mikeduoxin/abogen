@@ -857,11 +857,6 @@ class ConversionThread(QThread):
                         if segment_idx == 0:
                             loaded_voice = self.load_voice_cached(self.voice, self.backend)
 
-                    # Determine if spaCy segmentation should be used for PRE-TTS segmentation
-                    # Only non-English languages use spaCy for pre-segmentation
-                    # English uses spaCy only for subtitle generation (post-TTS)
-                    # spaCy is disabled when subtitle mode is "Disabled" or "Line"
-                    # spaCy is also disabled when input is a subtitle file
                     is_subtitle_input = (
                         not self.is_direct_text
                         and self.file_name
@@ -873,10 +868,9 @@ class ConversionThread(QThread):
                         and self.subtitle_mode not in ["Disabled", "Line"]
                         and not is_subtitle_input
                     )
-                    spacy_sentences = None
-                    active_split_pattern = self.split_pattern
 
-                    # Pre-load spaCy model for English if it will be needed for subtitle generation
+                    # Sentence subtitles for English are split after TTS, so the
+                    # model has to be loaded here. Pre-TTS splitting skips English.
                     if (
                         use_spacy
                         and self.lang_code in (Language.EN_US, Language.EN_GB)
@@ -896,37 +890,16 @@ class ConversionThread(QThread):
                                 )
                             )
 
-                    if use_spacy and self.lang_code not in (Language.EN_US, Language.EN_GB):
-                        # Non-English: use spaCy for pre-TTS segmentation
-                        self.log_updated.emit(
-                            ("\nUsing spaCy for sentence segmentation (pre-TTS)...", "grey")
-                        )
-                        from abogen.spacy_utils import segment_sentences
+                    from abogen.domain.conversion_pipeline import spacy_pre_tts_segmentation
 
-                        spacy_sentences = segment_sentences(
-                            segment_text,
-                            self.lang_code,
-                            log_callback=lambda msg: self.log_updated.emit(msg),
-                        )
-                        if spacy_sentences:
-                            self.log_updated.emit(
-                                (
-                                    f"\nspaCy: Text segmented into {len(spacy_sentences)} sentences...",
-                                    "grey",
-                                )
-                            )
-                            # spaCy already split at sentence boundaries; the
-                            # engine only splits on newlines. Commas are never
-                            # used in the engine split pattern (Sentence +
-                            # Comma splits at commas only at subtitle time).
-                            active_split_pattern = "\n"
-                        else:
-                            self.log_updated.emit(
-                                ("\nspaCy: Fallback to default segmentation...", "grey")
-                            )
-
-                    # Process text - either as spaCy sentences or as single text
-                    text_segments = spacy_sentences if spacy_sentences else [segment_text]
+                    text_segments, active_split_pattern = spacy_pre_tts_segmentation(
+                        segment_text,
+                        self.lang_code,
+                        self.subtitle_mode,
+                        is_subtitle_input=is_subtitle_input,
+                        use_spacy_segmentation=getattr(self, "use_spacy_segmentation", False),
+                        log_callback=lambda msg: self.log_updated.emit((f"\n{msg}", "grey")),
+                    )
 
                     # Print active split pattern used by the TTS engine once for this batch
                     try:
