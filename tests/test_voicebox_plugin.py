@@ -125,6 +125,29 @@ def test_one_synthesis_posts_profile_and_text(tmp_path: Path) -> None:
     }
 
 
+def test_region_language_maps_to_voicebox_code(tmp_path: Path) -> None:
+    client = FakeVoiceboxClient()
+    result = load_plugin_from_dir(PLUGIN_DIR)
+    assert result.success, result.error
+    engine = result.create_engine(
+        _context(client, tmp_path),
+        None,
+        EngineConfig(device="cpu", language=Language.EN_US),
+    )
+    session = engine.createSession()
+    session.synthesize(
+        SynthesisRequest(
+            text="Hello",
+            voice=VoiceSelection(source="voicebox", key="profile-7"),
+            parameters=ParameterValues(values={}),
+            format=AudioFormat(mime="audio/wav", extension="wav"),
+        )
+    )
+    session.dispose()
+    engine.dispose()
+    assert client.posts[0]["json"]["language"] == "en"
+
+
 def test_paragraphs_are_separate_requests(tmp_path: Path) -> None:
     client = FakeVoiceboxClient()
     engine = _engine(client, tmp_path)

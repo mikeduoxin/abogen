@@ -36,6 +36,9 @@ VOICEBOX_DEFAULT_URL = "http://localhost:17493"
 VOICEBOX_URL_ENV = "ABOGEN_VOICEBOX_URL"
 DEFAULT_MODEL_SIZE = "1.7B"
 SAMPLE_RATE = 24000
+_VOICEBOX_LANGUAGES = frozenset(
+    {"zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"}
+)
 _REQUEST_TIMEOUT_SECONDS = 6000
 _MAX_CHUNK_LENGTH = 500
 _SPLIT_PATTERN = re.compile(r"\n+")
@@ -133,12 +136,38 @@ def _wav_to_float32(data: bytes) -> tuple[np.ndarray, int]:
     return np.ascontiguousarray(audio, dtype="float32"), sample_rate
 
 
+def _voicebox_language(code: str) -> str:
+    """Map an Abogen language code to the short tag Voicebox accepts."""
+    normalized = str(code or "").strip().lower().replace("_", "-")
+    if normalized in _VOICEBOX_LANGUAGES:
+        return normalized
+    primary = normalized.split("-", 1)[0]
+    if primary in _VOICEBOX_LANGUAGES:
+        return primary
+    supported = ", ".join(sorted(_VOICEBOX_LANGUAGES))
+    raise EngineError(f"Voicebox does not support language {code!r}. Supported: {supported}")
+
+
+def _error_detail(response: object) -> str:
+    text = getattr(response, "text", None)
+    if isinstance(text, str) and text.strip():
+        return text.strip()[:500]
+    content = getattr(response, "content", b"")
+    if isinstance(content, (bytes, bytearray)) and content:
+        return bytes(content).decode("utf-8", errors="replace").strip()[:500]
+    return ""
+
+
 def _response_bytes(response: object) -> bytes:
     if response is None:
         raise EngineError("Voicebox HTTP client returned no response")
     status = getattr(response, "status_code", None)
     if isinstance(status, int) and status >= 400:
-        raise EngineError(f"Voicebox request failed with status {status}")
+        detail = _error_detail(response)
+        message = f"Voicebox request failed with status {status}"
+        if detail:
+            message = f"{message}: {detail}"
+        raise EngineError(message)
     raiser = getattr(response, "raise_for_status", None)
     if callable(raiser):
         try:
@@ -228,7 +257,7 @@ class VoiceboxSession:
             json={
                 "profile_id": profile_id,
                 "text": text,
-                "language": self._language,
+                "language": _voicebox_language(self._language),
                 "model_size": model_size,
             },
             timeout=_REQUEST_TIMEOUT_SECONDS,
