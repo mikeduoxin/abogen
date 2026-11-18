@@ -46,6 +46,8 @@ def create_pipeline_for_job(
 
     if provider == "supertonic":
         return create_pipeline("supertonic", language=language)
+    if provider == "voicebox":
+        return create_pipeline("voicebox", language=language)
 
     device = resolve_device(use_gpu)
     return create_pipeline("kokoro", language=language, device=device)

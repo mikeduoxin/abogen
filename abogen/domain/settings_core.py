@@ -121,6 +121,14 @@ def _norm_voice_spec(value: Any, default: str) -> str:
     return default
 
 
+def _norm_http_url(value: Any, default: str) -> str:
+    if isinstance(value, str):
+        text = value.strip().rstrip("/")
+        if text:
+            return text
+    return default
+
+
 def _norm_speaker_spec(value: Any, default: str) -> str:
     if isinstance(value, str):
         text = value.strip()
@@ -197,6 +205,9 @@ SETTINGS_REGISTRY: list[Setting] = [
             description="SuperTonic processing steps"),
     Setting("supertonic_speed", float, 1.0, min_value=0.7, max_value=2.0,
             description="SuperTonic speed"),
+    Setting("voicebox_url", str, "http://localhost:17493",
+            normalizer=_norm_http_url,
+            description="Base URL of the local Voicebox server"),
 
     # ── Chapter handling ─────────────────────────────────────────
     Setting("silence_between_chapters", float, 2.0, min_value=0.0,

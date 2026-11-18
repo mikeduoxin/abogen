@@ -113,6 +113,14 @@
               <label for="supertonic_speed">Supertonic Speed</label>
               <input type="number" id="supertonic_speed" name="supertonic_speed" min="0.7" max="2.0" step="0.05" value="{{ '%.2f'|format(settings.supertonic_speed) }}">
             </div>
+            <div class="field field--wide">
+              <p class="tag">Voicebox</p>
+              <p class="hint">Cloned voices are synthesized by a Voicebox server on this machine.</p>
+            </div>
+            <div class="field">
+              <label for="voicebox_url">Voicebox URL</label>
+              <input type="url" id="voicebox_url" name="voicebox_url" value="{{ settings.voicebox_url }}" placeholder="http://localhost:17493">
+            </div>
             <div class="field">
               <label for="chunk_level_default">Chunk Granularity</label>
               <select id="chunk_level_default" name="chunk_level">

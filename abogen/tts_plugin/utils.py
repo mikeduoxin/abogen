@@ -221,6 +221,20 @@ class Pipeline:
         self.dispose()
 
 
+class _RequestsHttpClient:
+    """HTTP client used by plugins that call a local or remote service."""
+
+    def get(self, url: str, **kwargs: object) -> object:
+        import requests
+
+        return requests.get(url, **kwargs)
+
+    def post(self, url: str, **kwargs: object) -> object:
+        import requests
+
+        return requests.post(url, **kwargs)
+
+
 def create_pipeline(
     plugin_id: str,
     *,
@@ -253,10 +267,7 @@ def create_pipeline(
     ctx = HostContext(
         config_dir=Path(tempfile.gettempdir()),
         logger=logging.getLogger(f"abogen.pipeline.{plugin_id}"),
-        http_client=type("_StubHttpClient", (), {
-            "get": staticmethod(lambda url, **kw: None),
-            "post": staticmethod(lambda url, **kw: None),
-        })(),
+        http_client=_RequestsHttpClient(),
     )
 
     config = EngineConfig(device=device, language=language)

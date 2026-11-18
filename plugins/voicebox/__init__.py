@@ -23,7 +23,7 @@ from abogen.tts_plugin.manifest import (
 )
 from abogen.tts_plugin.types import EngineConfig
 
-from .engine import DEFAULT_MODEL_SIZE, build_engine
+from .engine import DEFAULT_MODEL_SIZE, build_engine, resolve_voicebox_url
 
 PLUGIN_MANIFEST = PluginManifest(
     id="voicebox",
@@ -71,6 +71,7 @@ def create_engine(
         return build_engine(
             http_client=context.http_client,
             language=config.language,
+            base_url=resolve_voicebox_url(),
         )
     except EngineError:
         raise

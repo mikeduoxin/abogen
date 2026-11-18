@@ -90,6 +90,29 @@ def _coerce_supertonic_speed(value: Any) -> float:
     return max(0.7, min(2.0, speed))
 
 
+def voicebox_language_code(raw: Any) -> str:
+    """Map a Voicebox or legacy language tag to a Language enum value."""
+    text = str(raw or "").strip()
+    aliases = {
+        "z": Language.ZH.value,
+        "zh": Language.ZH.value,
+        "chinese": Language.ZH.value,
+        "a": Language.EN_US.value,
+        "en": Language.EN_US.value,
+        "en-us": Language.EN_US.value,
+        "b": Language.EN_GB.value,
+        "j": Language.JA.value,
+        "ja": Language.JA.value,
+    }
+    mapped = aliases.get(text.lower())
+    if mapped:
+        return mapped
+    try:
+        return Language.from_str(text).value
+    except ValueError:
+        return Language.ZH.value
+
+
 def normalize_profile_entry(entry: Any) -> Dict[str, Any]:
     """Normalize a stored profile entry.
 
@@ -102,10 +125,29 @@ def normalize_profile_entry(entry: Any) -> Dict[str, Any]:
         return {}
 
     provider = str(entry.get("provider") or "kokoro").strip().lower()
-    if not is_plugin_registered(provider):
+    if provider != "voicebox" and not is_plugin_registered(provider):
         provider = "kokoro"
 
     language = str(entry.get("language") or "a").strip().lower() or "a"
+
+    if provider == "voicebox":
+        profile_id = str(
+            entry.get("voicebox_profile_id") or entry.get("profile_id") or ""
+        ).strip()
+        if not profile_id:
+            return {}
+        result: Dict[str, Any] = {
+            "provider": "voicebox",
+            "language": voicebox_language_code(language),
+            "voicebox_profile_id": profile_id,
+        }
+        profile_name = entry.get("voicebox_profile_name")
+        if profile_name:
+            result["voicebox_profile_name"] = str(profile_name).strip()
+        profile_url = entry.get("voicebox_url")
+        if profile_url:
+            result["voicebox_url"] = str(profile_url).strip().rstrip("/")
+        return result
 
     if provider == "supertonic":
         return {
@@ -182,6 +224,61 @@ def save_profile(name: str, *, language: str, voices: Iterable) -> None:
     profiles = load_profiles()
     profiles[name] = {"provider": "kokoro", "language": language, "voices": normalized}
     save_profiles(profiles)
+
+
+def save_voicebox_profile(
+    name: str,
+    *,
+    voicebox_profile_id: str,
+    language: str = "zh",
+    voicebox_profile_name: str = "",
+    voicebox_url: str = "",
+) -> None:
+    """Persist a Voicebox speaker. The profile id is the synthesis voice key."""
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("Profile name is required")
+    voicebox_profile_id = (voicebox_profile_id or "").strip()
+    if not voicebox_profile_id:
+        raise ValueError("Voicebox profile_id is required")
+
+    entry: Dict[str, Any] = {
+        "provider": "voicebox",
+        "language": voicebox_language_code(language),
+        "voicebox_profile_id": voicebox_profile_id,
+    }
+    if voicebox_profile_name:
+        entry["voicebox_profile_name"] = voicebox_profile_name.strip()
+    if voicebox_url:
+        entry["voicebox_url"] = voicebox_url.strip().rstrip("/")
+
+    profiles = load_profiles()
+    profiles[name] = entry
+    save_profiles(profiles)
+
+
+def import_voicebox_profiles(remote_profiles: Any, *, base_url: str = "") -> List[str]:
+    """Save Voicebox server profiles under names prefixed with ``VB:``."""
+    imported: List[str] = []
+    if not isinstance(remote_profiles, list):
+        return imported
+    for profile in remote_profiles:
+        if not isinstance(profile, dict):
+            continue
+        profile_id = str(profile.get("id") or profile.get("profile_id") or "").strip()
+        if not profile_id:
+            continue
+        remote_name = str(profile.get("name") or profile_id).strip() or profile_id
+        display_name = f"VB: {remote_name}"
+        save_voicebox_profile(
+            display_name,
+            voicebox_profile_id=profile_id,
+            language=str(profile.get("language") or "zh"),
+            voicebox_profile_name=remote_name,
+            voicebox_url=base_url,
+        )
+        imported.append(display_name)
+    return imported
 
 
 def resolve_profile_language(entry: Any) -> Language:

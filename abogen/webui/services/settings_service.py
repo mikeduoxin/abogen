@@ -45,6 +45,9 @@ def apply_form_to_settings(current: dict, form: Mapping[str, Any]) -> dict:
         current["supertonic_speed"] = max(0.7, min(2.0, float(form.get("supertonic_speed", current.get("supertonic_speed", 1.0)))))
     except (TypeError, ValueError):
         pass
+    if "voicebox_url" in form:
+        voicebox_url = str(form.get("voicebox_url") or "").strip().rstrip("/")
+        current["voicebox_url"] = voicebox_url or "http://localhost:17493"
     current["output_format"] = (form.get("output_format") or "mp3").strip()
     current["subtitle_mode"] = (form.get("subtitle_mode") or "Disabled").strip()
     current["subtitle_format"] = (form.get("subtitle_format") or "srt").strip()

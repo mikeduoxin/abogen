@@ -123,6 +123,8 @@ def template_options() -> Dict[str, Any]:
                 "provider": provider,
                 "formula": formula_from_profile(entry or {}) or "",
                 "voice": (entry or {}).get("voice", ""),
+                "voicebox_profile_id": (entry or {}).get("voicebox_profile_id", ""),
+                "voicebox_profile_name": (entry or {}).get("voicebox_profile_name", ""),
                 "total_steps": (entry or {}).get("total_steps"),
                 "speed": (entry or {}).get("speed"),
             }

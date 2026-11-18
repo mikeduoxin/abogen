@@ -108,7 +108,7 @@ def generate_preview_audio(
             source_text = text
 
     normalized_text = source_text
-    if provider != "supertonic":
+    if provider not in {"supertonic", "voicebox"}:
         try:
             from abogen.kokoro_text_normalization import normalize_for_pipeline
 
@@ -119,7 +119,16 @@ def generate_preview_audio(
 
     preview_split = get_split_pattern(language, "Disabled")
 
-    if provider == "supertonic":
+    if provider == "voicebox":
+        from abogen.tts_plugin.utils import create_pipeline
+
+        pipeline = create_pipeline("voicebox", language=language)
+        segments = pipeline(
+            source_text,
+            voice=voice_spec,
+            speed=speed,
+        )
+    elif provider == "supertonic":
         from abogen.tts_plugin.utils import create_pipeline
 
         pipeline = create_pipeline("supertonic", language=language)

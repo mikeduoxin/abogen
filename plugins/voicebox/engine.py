@@ -43,6 +43,19 @@ _OUTPUT_FORMAT = AudioFormat(mime="audio/wav", extension="wav")
 _MEANINGFUL_PATTERN = re.compile(r"[\u4E00-\u9FFF\u3400-\u4DBF\w]")
 
 
+def resolve_voicebox_url() -> str:
+    """Return the configured Voicebox server URL, without a trailing slash."""
+    try:
+        from abogen.domain.settings_core import load_settings
+
+        configured = str(load_settings().get("voicebox_url") or "").strip()
+    except Exception:
+        configured = ""
+    if configured:
+        return configured.rstrip("/")
+    return voicebox_base_url()
+
+
 def voicebox_base_url() -> str:
     """Return the Voicebox server URL, without a trailing slash."""
     raw = os.environ.get(VOICEBOX_URL_ENV, VOICEBOX_DEFAULT_URL).strip()

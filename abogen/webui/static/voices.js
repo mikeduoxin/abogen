@@ -33,6 +33,8 @@ const setupVoiceMixer = () => {
   const supertonicSpeedInput = app.querySelector('[data-role="supertonic-speed"]');
   const supertonicStepsLabel = app.querySelector('[data-role="supertonic-steps-display"]');
   const supertonicSpeedLabel = app.querySelector('[data-role="supertonic-speed-display"]');
+  const voiceboxPanelEl = app.querySelector('[data-role="voicebox-panel"]');
+  const voiceboxProfileIdInput = app.querySelector('[data-role="voicebox-profile-id"]');
   const speedInput = document.getElementById("preview-speed");
   const importInput = document.getElementById("voice-import-input");
   const headerActions = document.querySelector(".voice-mixer__header-actions");
@@ -150,7 +152,10 @@ const setupVoiceMixer = () => {
 
   const normalizeProvider = (value) => {
     const candidate = String(value || "").trim().toLowerCase();
-    return candidate === "supertonic" ? "supertonic" : "kokoro";
+    if (candidate === "supertonic" || candidate === "voicebox") {
+      return candidate;
+    }
+    return "kokoro";
   };
 
   const getProviderCatalog = () => {
@@ -170,6 +175,9 @@ const setupVoiceMixer = () => {
     const provider = normalizeProvider(providerId);
     if (provider === "supertonic") {
       return "Voice selection + quality/speed per speaker.";
+    }
+    if (provider === "voicebox") {
+      return "Cloned voice from a local Voicebox server.";
     }
     return "Voice mixing supported via the Kokoro mixer.";
   };
@@ -268,6 +276,7 @@ const setupVoiceMixer = () => {
   const applyProviderToUI = () => {
     const provider = normalizeProvider(state.draft.provider);
     const isSupertonic = provider === "supertonic";
+    const isVoicebox = provider === "voicebox";
     if (providerSelect) {
       providerSelect.value = provider;
     }
@@ -275,13 +284,16 @@ const setupVoiceMixer = () => {
       languageField.hidden = isSupertonic;
     }
     if (kokoroMixerEl) {
-      kokoroMixerEl.hidden = isSupertonic;
+      kokoroMixerEl.hidden = isSupertonic || isVoicebox;
     }
     if (supertonicPanelEl) {
       supertonicPanelEl.hidden = !isSupertonic;
     }
+    if (voiceboxPanelEl) {
+      voiceboxPanelEl.hidden = !isVoicebox;
+    }
     if (mixTotalEl) {
-      mixTotalEl.hidden = isSupertonic;
+      mixTotalEl.hidden = isSupertonic || isVoicebox;
     }
     if (previewBtn) {
       previewBtn.dataset.label = isSupertonic ? "Preview speaker" : (previewBtn.dataset.label || "Preview speaker");
@@ -607,6 +619,9 @@ const setupVoiceMixer = () => {
       const speed = Number(state.draft.supertonic?.speed ?? 1.0);
       supertonicSpeedLabel.textContent = `${(Number.isFinite(speed) ? speed : 1.0).toFixed(2)}×`;
     }
+    if (voiceboxProfileIdInput) {
+      voiceboxProfileIdInput.value = state.draft.voiceboxProfileId || "";
+    }
     applyProviderToUI();
     renderSelectedVoices();
     updateMixSummary();
@@ -650,7 +665,11 @@ const setupVoiceMixer = () => {
       selectBtn.dataset.name = name;
       const profile = profiles[name] || {};
       const provider = normalizeProvider(profile.provider);
-      const providerLabel = provider === "supertonic" ? "Supertonic" : "Kokoro";
+      const providerLabel = provider === "supertonic"
+        ? "Supertonic"
+        : provider === "voicebox"
+          ? "Voicebox"
+          : "Kokoro";
       selectBtn.innerHTML = `
         <span class="voice-list__name">${name}</span>
         <span class="voice-list__meta"><span class="tag">${providerLabel}</span> ${voiceLanguageLabel(profile.language || "a")}</span>
@@ -704,6 +723,9 @@ const setupVoiceMixer = () => {
         total_steps: Number(profile?.total_steps ?? 5),
         speed: Number(profile?.speed ?? 1.0),
       },
+      voiceboxProfileId: profile?.voicebox_profile_id || "",
+      voiceboxProfileName: profile?.voicebox_profile_name || "",
+      voiceboxUrl: profile?.voicebox_url || "",
     };
     if (provider === "kokoro" && Array.isArray(profile?.voices)) {
       profile.voices.forEach((entry) => {
@@ -736,6 +758,9 @@ const setupVoiceMixer = () => {
         total_steps: 5,
         speed: 1.0,
       },
+      voiceboxProfileId: "",
+      voiceboxProfileName: "",
+      voiceboxUrl: "",
     };
     applyDraftToControls();
     renderProfileList();
@@ -796,16 +821,24 @@ const setupVoiceMixer = () => {
       setStatus("Give your profile a name first.", "warning");
       return;
     }
+    const provider = normalizeProvider(state.draft.provider);
     const payload = {
       name,
       originalName: state.originalName,
-      provider: normalizeProvider(state.draft.provider),
-      language: normalizeProvider(state.draft.provider) === "kokoro" ? (languageSelect ? languageSelect.value : "a") : "a",
-      voices: normalizeProvider(state.draft.provider) === "kokoro" ? buildProfilePayload() : [],
+      provider,
+      language: provider === "supertonic" ? "a" : (languageSelect ? languageSelect.value : "en-US"),
+      voices: provider === "kokoro" ? buildProfilePayload() : [],
       voice: state.draft.supertonic?.voice,
       total_steps: state.draft.supertonic?.total_steps,
       speed: state.draft.supertonic?.speed,
+      voicebox_profile_id: state.draft.voiceboxProfileId || "",
+      voicebox_profile_name: state.draft.voiceboxProfileName || "",
+      voicebox_url: state.draft.voiceboxUrl || "",
     };
+    if (provider === "voicebox" && !payload.voicebox_profile_id) {
+      setStatus("Voicebox profile id is required.", "warning");
+      return;
+    }
     try {
       const response = await fetch("/api/voice-profiles", {
         method: "POST",
@@ -925,6 +958,15 @@ const setupVoiceMixer = () => {
         setStatus("Enable at least one voice to preview.", "warning");
         return;
       }
+    } else if (provider === "voicebox") {
+      const profileId = state.draft.voiceboxProfileId || "";
+      if (!profileId) {
+        setStatus("Voicebox profile id is required.", "warning");
+        return;
+      }
+      payload.voicebox_profile_id = profileId;
+      payload.voice = profileId;
+      payload.tts_provider = "voicebox";
     } else {
       if (!payload.voice) {
         setStatus("Select a Supertonic voice to preview.", "warning");
@@ -1115,6 +1157,27 @@ const setupVoiceMixer = () => {
     });
   }
 
+  if (voiceboxProfileIdInput) {
+    voiceboxProfileIdInput.addEventListener("input", () => {
+      state.draft.voiceboxProfileId = voiceboxProfileIdInput.value.trim();
+      markDirty();
+    });
+  }
+
+  const runVoiceboxImport = async () => {
+    setStatus("Importing Voicebox profiles…", "info", 0);
+    try {
+      const response = await fetch("/voices/voicebox/import", { method: "POST" });
+      const result = await withJson(response);
+      const selected = Array.isArray(result.imported) ? result.imported[0] : null;
+      refreshProfiles(result.profiles, selected);
+      const count = Number(result.count ?? (result.imported || []).length);
+      setStatus(`Imported ${count} Voicebox speaker${count === 1 ? "" : "s"}.`, "success");
+    } catch (error) {
+      setStatus(error.message || "Voicebox import failed", "danger", 7000);
+    }
+  };
+
   if (headerActions) {
     headerActions.addEventListener("click", (event) => {
       const target = event.target;
@@ -1126,6 +1189,8 @@ const setupVoiceMixer = () => {
         requestNewProfile();
       } else if (action === "import-profiles") {
         importInput?.click();
+      } else if (action === "import-voicebox") {
+        runVoiceboxImport();
       } else if (action === "export-profiles") {
         runExport();
       }

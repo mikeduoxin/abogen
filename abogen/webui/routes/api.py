@@ -80,7 +80,7 @@ def api_save_voice_profile() -> ResponseReturnValue:
     if profile is None:
         # Speaker Studio payload format
         provider = str(payload.get("provider") or "kokoro").strip().lower()
-        if not is_plugin_registered(provider):
+        if provider != "voicebox" and not is_plugin_registered(provider):
             provider = "kokoro"
         if provider == "supertonic":
             profile = {
@@ -89,6 +89,14 @@ def api_save_voice_profile() -> ResponseReturnValue:
                 "voice": payload.get("voice"),
                 "total_steps": payload.get("total_steps") or payload.get("supertonic_total_steps"),
                 "speed": payload.get("speed") or payload.get("supertonic_speed"),
+            }
+        elif provider == "voicebox":
+            profile = {
+                "provider": "voicebox",
+                "language": str(payload.get("language") or "zh"),
+                "voicebox_profile_id": payload.get("voicebox_profile_id") or payload.get("profile_id"),
+                "voicebox_profile_name": payload.get("voicebox_profile_name") or "",
+                "voicebox_url": payload.get("voicebox_url") or "",
             }
         else:
             profile = {
@@ -190,7 +198,9 @@ def api_voice_profiles_preview() -> ResponseReturnValue:
     )
 
     profiles = load_profiles()
-    if resolved_provider == "supertonic" and not profile_name:
+    if resolved_provider == "voicebox" and not profile_name:
+        voice_spec = str(payload.get("voicebox_profile_id") or payload.get("voice") or "").strip()
+    elif resolved_provider == "supertonic" and not profile_name:
         voice_spec = str(payload.get("voice") or payload.get("supertonic_voice") or "M1").strip() or "M1"
         # Allow per-speaker overrides via payload.
         supertonic_total_steps = int(payload.get("supertonic_total_steps") or payload.get("total_steps") or supertonic_total_steps)
@@ -205,6 +215,9 @@ def api_voice_profiles_preview() -> ResponseReturnValue:
             voice_spec = str(normalized_entry.get("voice") or "M1")
             supertonic_total_steps = int(normalized_entry.get("total_steps") or supertonic_total_steps)
             speed = float(normalized_entry.get("speed") or speed)
+        elif resolved_provider == "voicebox":
+            voice_spec = str(normalized_entry.get("voicebox_profile_id") or "")
+            language = _parse_language(normalized_entry.get("language") or language)
         else:
             voice_spec = formula_from_profile(normalized_entry) or ""
             language = _parse_language(normalized_entry.get("language") or language)
@@ -270,6 +283,9 @@ def api_speaker_preview() -> ResponseReturnValue:
                 supertonic_total_steps = int(entry.get("total_steps") or supertonic_total_steps)
                 if speed_value is None:
                     speed = coerce_float(entry.get("speed"), speed)
+            elif resolved_provider == "voicebox":
+                voice = str(entry.get("voicebox_profile_id") or "")
+                language = _parse_language(entry.get("language") or language)
             elif resolved_provider == "kokoro":
                 voice = formula_from_profile(entry) or (base_spec or voice)
 

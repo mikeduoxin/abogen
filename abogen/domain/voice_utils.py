@@ -10,6 +10,8 @@ def infer_provider_from_spec(value: Any, fallback: str = "kokoro") -> str:
     raw = str(value or "").strip()
     if not raw:
         return fallback
+    if raw.lower().startswith("voicebox:"):
+        return "voicebox"
     if raw.upper() == raw and raw.replace("_", "").isalnum():
         return "supertonic"
     if raw == "__custom_mix" or "*" in raw or "+" in raw:
@@ -114,6 +116,9 @@ def resolve_voice_target(
     if speaker_name and speaker_name in normalized_profiles:
         entry = normalized_profiles[speaker_name]
         provider = str(entry.get("provider") or "kokoro").strip().lower() or "kokoro"
+        if provider == "voicebox":
+            profile_id = str(entry.get("voicebox_profile_id") or "").strip()
+            return "voicebox", profile_id, None, None
         if provider == "supertonic":
             voice = str(entry.get("voice") or job_voice or "M1").strip() or "M1"
             steps = int(entry.get("total_steps") or job_supertonic_total_steps or 5)
@@ -124,6 +129,9 @@ def resolve_voice_target(
 
     fallback_provider = str(job_tts_provider or "kokoro").strip().lower() or "kokoro"
     inferred = infer_provider_from_spec(spec, fallback=fallback_provider)
+    if inferred == "voicebox":
+        profile_id = spec.split(":", 1)[1].strip() if ":" in spec else spec
+        return "voicebox", profile_id, None, None
     if inferred == "supertonic":
         return "supertonic", supertonic_voice_from_spec(spec, job_voice), None, None
     return "kokoro", spec, None, None

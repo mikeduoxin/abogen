@@ -20,6 +20,7 @@ from abogen.speaker_configs import (
     save_configs,
     delete_config,
 )
+from abogen.voice_profiles import import_voicebox_profiles, serialize_profiles
 
 
 voices_bp = Blueprint("voices", __name__)
@@ -141,3 +142,48 @@ def speaker_configs_page() -> ResponseReturnValue:
 def delete_speaker_config_named(name: str) -> ResponseReturnValue:
     delete_config(name)
     return redirect(url_for("voices.speaker_configs_page"))
+
+
+def _voicebox_base_url() -> str:
+    settings = load_settings()
+    return str(settings.get("voicebox_url") or "http://localhost:17493").strip().rstrip("/")
+
+
+@voices_bp.get("/voicebox/profiles")
+def voicebox_profiles() -> ResponseReturnValue:
+    """Return profiles from the configured Voicebox server."""
+    base_url = _voicebox_base_url()
+    try:
+        import requests
+
+        response = requests.get(f"{base_url}/profiles", timeout=10)
+        response.raise_for_status()
+        profiles = response.json()
+        if not isinstance(profiles, list):
+            profiles = []
+    except Exception as exc:
+        return jsonify({"error": str(exc), "profiles": []}), 502
+    return jsonify({"profiles": profiles})
+
+
+@voices_bp.post("/voicebox/import")
+def voicebox_import() -> ResponseReturnValue:
+    """Fetch Voicebox profiles and store them as Abogen speakers."""
+    base_url = _voicebox_base_url()
+    try:
+        import requests
+
+        response = requests.get(f"{base_url}/profiles", timeout=10)
+        response.raise_for_status()
+        remote_profiles = response.json()
+    except Exception as exc:
+        return jsonify({"error": f"Cannot reach Voicebox: {exc}", "imported": []}), 502
+
+    imported = import_voicebox_profiles(remote_profiles, base_url=base_url)
+    return jsonify(
+        {
+            "imported": imported,
+            "count": len(imported),
+            "profiles": serialize_profiles(),
+        }
+    )

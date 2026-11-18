@@ -61,7 +61,24 @@
 - 那份工作区相对 fork 的 `origin/main`：184 个文件内容一致，12 个文件不同。独特功能主要是 Voicebox。
 - 上游最新架构用 `abogen/tts_plugin` 加上 `plugins/kokoro`、`plugins/supertonic`。
 
+### 9. 开始把 Voicebox 接到 WebUI
+
+结论：音色导入和转换都走 `plugins/voicebox`。说话人里保存 Voicebox 的 profile id。导入从设置里的 Voicebox 地址拉取档案，名字写成 `VB: <名称>`。预览和正式转换用这个 id 调用插件。
+
+理由：用户选择开始下一段。上游转换通过 `resolve_voice_target` 和 `create_pipeline_for_job` 选引擎，Voicebox 接在这两处，以及 Speaker Studio 的导入和预览。
+
+已执行：
+
+- 设置项 `voicebox_url`，默认 `http://localhost:17493`
+- `POST /voices/voicebox/import` 与 Speaker Studio 的 Import Voicebox
+- 转换和预览在 provider 为 voicebox 时创建 `voicebox` 插件
+
+### 10. 提交 WebUI 接入，不推远程
+
+结论：把这一段提交到 `port/voicebox-plugin`。不推远程。
+
+理由：用户选择提交。导入、设置和转换属于同一段，留在移植分支上，切换分支时不会散掉。`.cache/` 与 `.cursor/` 仍然不纳入提交。
+
 ## 待定
 
-- WebUI 的音色导入、音色配置和转换流程接入。
 - 安全分支和移植分支是否推到远程。当前不推。
